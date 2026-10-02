@@ -9,7 +9,7 @@ st.title("⚡ Monitor de Daños Pendientes (DP) - Zona Centro")
 st.markdown("Visualización de tiempos de atención (SLA: Urbano = 1 día | Rural = 3 días)")
 
 # 1. Definir el archivo por defecto que subiste a GitHub
-archivo_por_defecto = "Navegador de incidentes_01_10_2026 06_15_57.320.xlsx"
+archivo_por_defecto = "Base_DP.xlsx"
 
 # 2. Dejar la opción de cargar uno nuevo de forma opcional
 archivo_subido = st.file_uploader("Actualizar reporte del día (Opcional)", type=["xlsx", "xls"])
