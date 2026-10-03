@@ -49,75 +49,32 @@ if archivo_a_usar is not None:
         # Tarjetas de métricas operativas
         col1, col2, col3 = st.columns(3)
         col1.metric("🔴 Vencidos", len(df[df['Estado SLA'] == 'Vencido']))
-
         col2.metric("🟡 Al Límite", len(df[df['Estado SLA'] == 'Al Límite']))
-
-        col3.metric("🟢 A Tiempo", len(df[df['Estado SLA'] == 'A Tiempo']))
-
-        
-
-        st.markdown("---")
-
-        
-
+        col3.metric("🟢 A Tiempo", len(df[df['Estado SLA'] == 'A Tiempo']))      
+        st.markdown("---")        
         # Gráficas de gestión
-
         c1, c2 = st.columns(2)
-
         with c1:
-
             st.subheader("Distribución General")
-
             conteo = df['Estado SLA'].value_counts().reset_index()
-
             fig1 = px.pie(conteo, names='Estado SLA', values='count', color='Estado SLA', color_discrete_map=colores)
-
-            st.plotly_chart(fig1, use_container_width=True)
-
-            
-
+            st.plotly_chart(fig1, use_container_width=True)           
         with c2:
-
             st.subheader("Top DP Críticos con más días")
-
             vencidos = df.sort_values('Días Sin Servicio', ascending=False).head(10)
-
             if not vencidos.empty:
-
                 fig2 = px.bar(vencidos, x='Días Sin Servicio', y='Identificación', 
-
                               hover_data=['Subestación', 'Dirección del dispositivo', 'Tipo de Sector'],
-
                               orientation='h', color='Estado SLA', color_discrete_map=colores)
-
                 st.plotly_chart(fig2, use_container_width=True)
-
             else:
-
-                st.info("No hay incidentes vencidos registrados.")
-
-            
-
+                st.info("No hay incidentes vencidos registrados.")            
         # Tabla de datos con INC y Subestación
-
         st.subheader("Detalle Operativo para Despacho")
-
-        columnas = ['Identificación', 'Subestación', 'Instrucción', 'Dirección del dispositivo', 'Tipo de Sector', 'Días Sin Servicio', 'Estado SLA', 'Cuadrillas']
-
-        
-
+        columnas = ['Identificación', 'Subestación', 'Instrucción', 'Dirección del dispositivo', 'Tipo de Sector', 'Días Sin Servicio', 'Estado SLA', 'Cuadrillas']        
         def resaltar_filas(val):
-
             color = '#ffcccc' if val == 'Vencido' else '#ffffcc' if val == 'Al Límite' else '#ccffcc'
-
-            return f'background-color: {color}'
-
-            
-
-        st.dataframe(df[columnas].style.map(resaltar_filas, subset=['Estado SLA']))
-
-        
-
+            return f'background-color: {color}'           
+        st.dataframe(df[columnas].style.map(resaltar_filas, subset=['Estado SLA']))      
     except Exception as e:
-
         st.error(f"Error procesando el archivo: {e}. Asegúrate de que el formato de WFM sea el correcto.") 
