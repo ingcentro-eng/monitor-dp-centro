@@ -1,7 +1,6 @@
 import streamlit as st
 import pandas as pd
 import plotly.express as px
-from datetime import datetime
 
 st.set_page_config(page_title="Monitor DP - Zona Centro", layout="wide")
 st.title("⚡ Monitor de Daños Pendientes (DP) - Zona Centro")
@@ -12,22 +11,24 @@ archivo_subido = st.file_uploader("📂 Cargar reporte del día (Excel de WFM)",
 
 if archivo_subido is not None:
     try:
-        # 1. LECTURA INTELIGENTE DE ENCABEZADOS (Soluciona el error de lectura)
-        # Leemos las primeras 15 filas para encontrar automáticamente dónde empiezan los datos
+        # 1. LECTURA INTELIGENTE DE ENCABEZADOS (Evita falsos positivos del reporte WFM)
         df_temp = pd.read_excel(archivo_subido, header=None, nrows=15)
         header_idx = -1
         
         for i in range(len(df_temp)):
-            fila_texto = " ".join(df_temp.iloc[i].astype(str).str.lower().tolist())
-            # Si la fila contiene la palabra clave, esa es nuestra cabecera
-            if 'identificación' in fila_texto or 'instrucción' in fila_texto:
+            fila = df_temp.iloc[i].astype(str).str.lower().tolist()
+            # Validamos que existan simultáneamente las columnas clave para asegurar que es la tabla real
+            tiene_identificacion = any('identificaci' in str(c) for c in fila)
+            tiene_instruccion = any('instrucci' in str(c) for c in fila)
+            
+            if tiene_identificacion and tiene_instruccion:
                 header_idx = i
                 break
         
         if header_idx == -1:
             st.error("❌ No se detectaron los encabezados en el archivo. Verifica que sea el reporte de WFM.")
         else:
-            # Volvemos a leer el Excel desde la fila exacta que encontramos
+            # Volvemos a leer el Excel desde la fila exacta de los encabezados (Suele ser la fila 5)
             archivo_subido.seek(0)
             df = pd.read_excel(archivo_subido, header=header_idx)
             
@@ -36,7 +37,8 @@ if archivo_subido is not None:
             else:
                 # 2. PARSEO DE FECHAS Y DÍAS SIN SERVICIO
                 df['Fecha_Calculo'] = pd.to_datetime(df['Fecha de creación'], errors='coerce')
-                hoy = pd.Timestamp.now().normalize() # Trae la fecha de hoy a las 00:00:00
+                hoy = pd.Timestamp.now().normalize()
+                # Calculamos la diferencia exacta en días
                 df['Días Sin Servicio'] = (hoy - df['Fecha_Calculo']).dt.days.fillna(0).astype(int)
                 
                 # 3. CLASIFICACIÓN SECTOR URBANO / RURAL
@@ -51,9 +53,8 @@ if archivo_subido is not None:
                 else:
                     df['Tipo de Sector'] = 'URBANO'
                     
-                # 4. EVALUACIÓN DE ANS (SLA)
+                # 4. EVALUACIÓN DE ANS (SLA - 1 día urbano, 3 días rural)
                 def estado_sla(row):
-                    # Límite: 3 días rural, 1 día urbano
                     limite = 3 if row['Tipo de Sector'] == 'RURAL' else 1
                     
                     if row['Días Sin Servicio'] > limite:
@@ -68,7 +69,7 @@ if archivo_subido is not None:
                 # 5. PALETA DE COLORES (Semáforo visual)
                 colores = {'A Tiempo': '#00B050', 'Al Límite': '#FFC000', 'Vencido': '#C00000'}
                 
-                # 6. MÉTRICAS OPERATIVAS
+                # 6. TARJETAS DE MÉTRICAS OPERATIVAS
                 vencidos = len(df[df['Estado SLA'] == 'Vencido'])
                 limite = len(df[df['Estado SLA'] == 'Al Límite'])
                 a_tiempo = len(df[df['Estado SLA'] == 'A Tiempo'])
@@ -80,7 +81,7 @@ if archivo_subido is not None:
                 
                 st.markdown("---")
                 
-                # 7. GRÁFICAS DE GESTIÓN
+                # 7. GRÁFICAS DE GESTIÓN (Torta y Barras)
                 c1, c2 = st.columns(2)
                 with c1:
                     st.subheader("Distribución General SLA")
@@ -97,16 +98,14 @@ if archivo_subido is not None:
                         fig2 = px.bar(df_vencidos, x='Días Sin Servicio', y='Identificación',
                                       hover_data=['Subestación', 'Dirección del dispositivo', 'Tipo de Sector'],
                                       orientation='h', color='Estado SLA', color_discrete_map=colores)
-                        # Ordenar las barras de mayor a menor visualmente
                         fig2.update_layout(yaxis={'categoryorder': 'total ascending'})
                         st.plotly_chart(fig2, use_container_width=True)
                     else:
                         st.info("¡Excelente! No hay incidentes cargados.")
                         
-                # 8. TABLA DE DETALLES CON COLORES
+                # 8. TABLA DE DETALLES CON COLORES (Alerta visual para despacho)
                 st.subheader(f"Detalle Operativo para Despacho ({len(df)} Registros)")
                 cols_deseadas = ['Identificación', 'Subestación', 'Instrucción', 'Dirección del dispositivo', 'Tipo de Sector', 'Días Sin Servicio', 'Estado SLA', 'Cuadrillas']
-                # Filtramos para mostrar solo las columnas que sí existen en el archivo
                 cols_finales = [c for c in cols_deseadas if c in df.columns]
                 
                 def color_celdas(val):
@@ -115,11 +114,10 @@ if archivo_subido is not None:
                     if val == 'A Tiempo': return 'background-color: #ccffcc; color: black;'
                     return ''
                 
-                # Aplicar estilos compatibles con la nube de Streamlit
+                # Mapeo de estilos seguro compatible con múltiples versiones de la nube de Streamlit
                 try:
                     st.dataframe(df[cols_finales].style.map(color_celdas, subset=['Estado SLA']))
                 except AttributeError:
-                    # Soporte para versiones anteriores de Pandas
                     st.dataframe(df[cols_finales].style.applymap(color_celdas, subset=['Estado SLA']))
                     
     except Exception as e:
