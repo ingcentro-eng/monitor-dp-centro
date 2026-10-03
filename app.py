@@ -201,9 +201,9 @@ if archivo_a_usar is not None:
             
         df = pd.read_excel(archivo_a_usar, header=header_idx)
         
-        # ELIMINAR COLUMNAS DUPLICADAS DEL EXCEL BASE PARA PREVENIR ERRORES
-        df = df.loc[:, ~df.columns.duplicated()].copy()
+        # 1. LIMPIAR Y DEDUPLICAR COLUMNAS DESDE LA CARGA INICIAL
         df.columns = df.columns.astype(str).str.strip()
+        df = df.loc[:, ~df.columns.duplicated()].copy()
         
         # PARSEO DE FECHAS Y DÍAS SIN SERVICIO
         if 'Fecha de creación' in df.columns:
@@ -250,10 +250,12 @@ if archivo_a_usar is not None:
                 
         df['Estado SLA'] = df.apply(estado_sla, axis=1)
 
-        # HOMOGENEIZACIÓN DIRECTA DE LA COLUMNA SUBESTACIÓN
+        # HOMOGENEIZACIÓN DE LA COLUMNA SUBESTACIÓN
         sub_col = [c for c in df.columns if 'subestaci' in c.lower()]
-        if sub_col:
+        if sub_col and sub_col[0] != 'Subestación':
             df['Subestación'] = df[sub_col[0]].fillna('SIN SUBESTACIÓN').astype(str)
+        elif 'Subestación' in df.columns:
+            df['Subestación'] = df['Subestación'].fillna('SIN SUBESTACIÓN').astype(str)
         else:
             df['Subestación'] = 'SIN SUBESTACIÓN'
             
@@ -292,12 +294,12 @@ if archivo_a_usar is not None:
                 sla_seleccionados = ['Vencido', 'Al Límite', 'A Tiempo']
         st.markdown('</div>', unsafe_allow_html=True)
 
-        # APLICACIÓN DE FILTROS COMBINADOS
+        # APLICACIÓN DE FILTROS COMBINADOS Y REAJUSTE DE ÍNDICE
         df_filtrado = df[
             (df['Subestación'].isin(subestaciones_seleccionadas)) &
             (df['Tipo de Sector'].isin(sectores_seleccionados)) &
             (df['Estado SLA'].isin(sla_seleccionados))
-        ].copy()
+        ].copy().reset_index(drop=True)
 
         if df_filtrado.empty:
             st.warning("⚠️ No existen registros que coincidan con la combinación de filtros seleccionada.")
@@ -316,11 +318,11 @@ if archivo_a_usar is not None:
         # =========================================================
         with tab1:
             # MÉTRICAS EJECUTIVAS
-            vencidos_cnt = len(df_filtrado[df_filtrado['Estado SLA'] == 'Vencido'])
-            limite_cnt = len(df_filtrado[df_filtrado['Estado SLA'] == 'Al Límite'])
-            tiempo_cnt = len(df_filtrado[df_filtrado['Estado SLA'] == 'A Tiempo'])
+            vencidos_cnt = int((df_filtrado['Estado SLA'] == 'Vencido').sum())
+            limite_cnt = int((df_filtrado['Estado SLA'] == 'Al Límite').sum())
+            tiempo_cnt = int((df_filtrado['Estado SLA'] == 'A Tiempo').sum())
             total_cnt = len(df_filtrado)
-            total_afectados = df_filtrado['Clientes Sin Servicio'].sum()
+            total_afectados = int(df_filtrado['Clientes Sin Servicio'].sum())
 
             pct_vencidos = round((vencidos_cnt / total_cnt) * 100, 1) if total_cnt > 0 else 0
 
@@ -390,7 +392,7 @@ if archivo_a_usar is not None:
 
             with c2:
                 st.subheader("🚨 Top 10 DP Críticos (Más Días Sin Servicio)")
-                vencidos = df_filtrado.sort_values(by=['Días Sin Servicio', 'Clientes Sin Servicio'], ascending=[False, False]).head(10)
+                vencidos = df_filtrado.sort_values(by=['Días Sin Servicio', 'Clientes Sin Servicio'], ascending=[False, False]).head(10).reset_index(drop=True)
                 if not vencidos.empty:
                     hover_cols = [c for c in ['Subestación', 'Clientes Sin Servicio', 'Dirección del dispositivo', 'Tipo de Sector', 'Cuadrillas'] if c in vencidos.columns]
                     id_col = [c for c in vencidos.columns if 'identificaci' in c.lower()]
@@ -424,7 +426,7 @@ if archivo_a_usar is not None:
                 'Estado SLA', 'Cuadrillas'
             ]
             
-            # FILTRAR Y DEDUPLICAR COLUMNAS PARA ELIMINAR CUALQUIER NICKNAME DUPLICADO
+            # FILTRAR COLUMNAS EXISTENTES SIN DUPLICADOS
             cols_finales = list(dict.fromkeys([c for c in columnas_deseadas if c in df_filtrado.columns]))
 
             def resaltar_filas(val):
@@ -442,18 +444,18 @@ if archivo_a_usar is not None:
                 ascending=[True, False, False]
             ).drop(columns=['prioridad'])
 
-            # ASEGURAR COLUMNAS ÚNICAS E ÍNDICE LIOFILIZADO PARA EL STYLER
-            df_display = df_display[cols_finales].loc[:, ~df_display.columns.duplicated()].reset_index(drop=True)
+            # CONSTRUIR LA VISTA FINAL LIMPIA SIN DESCALCES DE INDEX O COLUMNAS
+            df_display_clean = df_display[cols_finales].reset_index(drop=True)
 
             try:
                 st.dataframe(
-                    df_display.style.map(resaltar_filas, subset=['Estado SLA']),
+                    df_display_clean.style.map(resaltar_filas, subset=['Estado SLA']),
                     use_container_width=True,
                     height=420
                 )
             except AttributeError:
                 st.dataframe(
-                    df_display.style.applymap(resaltar_filas, subset=['Estado SLA']),
+                    df_display_clean.style.applymap(resaltar_filas, subset=['Estado SLA']),
                     use_container_width=True,
                     height=420
                 )
@@ -464,13 +466,13 @@ if archivo_a_usar is not None:
         with tab2:
             st.subheader("📊 Matriz de Cumplimiento por Subestación")
             
-            resumen_sub = df_filtrado.groupby('Subestación').agg(
+            resumen_sub = df_filtrado.groupby('Subestación', as_index=False).agg(
                 Total_DP=('Identificación', 'count'),
                 Vencidos=('Estado SLA', lambda x: (x == 'Vencido').sum()),
                 Al_Limite=('Estado SLA', lambda x: (x == 'Al Límite').sum()),
                 A_Tiempo=('Estado SLA', lambda x: (x == 'A Tiempo').sum()),
                 Clientes_Afectados=('Clientes Sin Servicio', 'sum')
-            ).reset_index()
+            )
 
             resumen_sub['% Cumplimiento SLA'] = ((resumen_sub['A_Tiempo'] / resumen_sub['Total_DP']) * 100).round(1)
 
@@ -502,7 +504,7 @@ if archivo_a_usar is not None:
 
             buffer = io.BytesIO()
             with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
-                df_display.to_excel(writer, index=False, sheet_name='Reporte_DP_Centro')
+                df_display_clean.to_excel(writer, index=False, sheet_name='Reporte_DP_Centro')
             
             st.download_button(
                 label="📥 Descargar Planilla en Excel (.xlsx)",
