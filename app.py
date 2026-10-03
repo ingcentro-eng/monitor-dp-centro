@@ -226,15 +226,11 @@ if archivo_a_usar is not None:
         dir_col = [c for c in df.columns if 'direcci' in c.lower()]
         df['Tipo de Sector'] = df[dir_col[0]].apply(clasificar_sector) if dir_col else 'URBANO'
         
-        # CLIENTES SIN SERVICIO
-        afectados_col = None
-        for col_candidate in ['Clientes no restaurados', 'Afectados', 'Clientes no restaurados.']:
-            if col_candidate in df.columns:
-                afectados_col = col_candidate
-                break
-
-        if afectados_col:
-            df['Clientes Sin Servicio'] = pd.to_numeric(df[afectados_col], errors='coerce').fillna(0).astype(int)
+        # --- SELECCIÓN DE LA COLUMNA AFECTADOS PARA CLIENTES SIN SERVICIO ---
+        if 'Afectados' in df.columns:
+            df['Clientes Sin Servicio'] = pd.to_numeric(df['Afectados'], errors='coerce').fillna(0).astype(int)
+        elif 'Clientes no restaurados' in df.columns:
+            df['Clientes Sin Servicio'] = pd.to_numeric(df['Clientes no restaurados'], errors='coerce').fillna(0).astype(int)
         else:
             df['Clientes Sin Servicio'] = 0
 
@@ -426,7 +422,6 @@ if archivo_a_usar is not None:
                 'Estado SLA', 'Cuadrillas'
             ]
             
-            # FILTRAR COLUMNAS EXISTENTES SIN DUPLICADOS
             cols_finales = list(dict.fromkeys([c for c in columnas_deseadas if c in df_filtrado.columns]))
 
             def resaltar_filas(val):
@@ -444,7 +439,6 @@ if archivo_a_usar is not None:
                 ascending=[True, False, False]
             ).drop(columns=['prioridad'])
 
-            # CONSTRUIR LA VISTA FINAL LIMPIA SIN DESCALCES DE INDEX O COLUMNAS
             df_display_clean = df_display[cols_finales].reset_index(drop=True)
 
             try:
