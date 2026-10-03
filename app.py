@@ -54,17 +54,9 @@ if archivo_a_usar is not None:
                 return 'A Tiempo'
                 
         df['Estado SLA'] = df.apply(estado_sla, axis=1)
-
-        # Mapeo de la columna de clientes sin servicio (Afectados / Clientes no restaurados)
-        if 'Clientes no restaurados' in df.columns:
-            df['Clientes Sin Servicio'] = df['Clientes no restaurados'].fillna(0).astype(int)
-        elif 'Afectados' in df.columns:
-            df['Clientes Sin Servicio'] = df['Afectados'].fillna(0).astype(int)
-        else:
-            df['Clientes Sin Servicio'] = 0
-
-        # --- AGREGADO: FILTRO MULTISELECCIÓN POR SUBESTACIÓN ---
-        subestaciones_disponibles = sorted(df['Subestación'].dropna().astype(str).unique())
+        
+        # --- FILTRO MULTI-SELECCIÓN POR SUBESTACIÓN ---
+        subestaciones_disponibles = sorted(df['Subestación'].dropna().unique())
         subestaciones_seleccionadas = st.multiselect(
             "📍 Filtrar por Subestación (puedes elegir una o varias):",
             options=subestaciones_disponibles,
@@ -72,20 +64,19 @@ if archivo_a_usar is not None:
         )
         
         if subestaciones_seleccionadas:
-            df = df[df['Subestación'].astype(str).isin(subestaciones_seleccionadas)]
+            df = df[df['Subestación'].isin(subestaciones_seleccionadas)]
         else:
-            st.warning("Por favor selecciona al menos una subestación.")
+            st.warning("⚠️ Selecciona al menos una subestación para visualizar el análisis.")
             st.stop()
         
         # Paleta de colores visual para rápida identificación
         colores = {'A Tiempo': '#00B050', 'Al Límite': '#FFC000', 'Vencido': '#C00000'}
         
-        # Tarjetas de métricas operativas (agregando Clientes Sin Servicio)
-        col1, col2, col3, col4 = st.columns(4)
+        # Tarjetas de métricas operativas
+        col1, col2, col3 = st.columns(3)
         col1.metric("🔴 Vencidos", len(df[df['Estado SLA'] == 'Vencido']))
         col2.metric("🟡 Al Límite", len(df[df['Estado SLA'] == 'Al Límite']))
         col3.metric("🟢 A Tiempo", len(df[df['Estado SLA'] == 'A Tiempo']))
-        col4.metric("👥 Clientes Sin Servicio", int(df['Clientes Sin Servicio'].sum()))
         
         st.markdown("---")
         
@@ -94,8 +85,8 @@ if archivo_a_usar is not None:
         with c1:
             st.subheader("Distribución General")
             conteo = df['Estado SLA'].value_counts().reset_index()
-            conteo.columns = ['Estado SLA', 'count']
-            fig1 = px.pie(conteo, names='Estado SLA', values='count', color='Estado SLA', color_discrete_map=colores)
+            conteo.columns = ['Estado SLA', 'Cantidad']
+            fig1 = px.pie(conteo, names='Estado SLA', values='Cantidad', color='Estado SLA', color_discrete_map=colores)
             st.plotly_chart(fig1, use_container_width=True)
             
         with c2:
@@ -103,15 +94,15 @@ if archivo_a_usar is not None:
             vencidos = df.sort_values('Días Sin Servicio', ascending=False).head(10)
             if not vencidos.empty:
                 fig2 = px.bar(vencidos, x='Días Sin Servicio', y='Identificación', 
-                              hover_data=['Subestación', 'Clientes Sin Servicio', 'Dirección del dispositivo', 'Tipo de Sector'],
+                              hover_data=['Subestación', 'Dirección del dispositivo', 'Tipo de Sector'],
                               orientation='h', color='Estado SLA', color_discrete_map=colores)
                 st.plotly_chart(fig2, use_container_width=True)
             else:
-                st.info("No hay incidentes vencidos registrados.")
+                st.info("No hay incidentes vencidos registrados para las subestaciones seleccionadas.")
             
-        # Tabla de datos con INC, Subestación y Clientes Sin Servicio
+        # Tabla de datos con INC y Subestación
         st.subheader("Detalle Operativo para Despacho")
-        columnas = ['Identificación', 'Subestación', 'Instrucción', 'Dirección del dispositivo', 'Tipo de Sector', 'Clientes Sin Servicio', 'Días Sin Servicio', 'Estado SLA', 'Cuadrillas']
+        columnas = ['Identificación', 'Subestación', 'Instrucción', 'Dirección del dispositivo', 'Tipo de Sector', 'Días Sin Servicio', 'Estado SLA', 'Cuadrillas']
         
         def resaltar_filas(val):
             color = '#ffcccc' if val == 'Vencido' else '#ffffcc' if val == 'Al Límite' else '#ccffcc'
