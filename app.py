@@ -337,7 +337,7 @@ with st.sidebar:
     st.markdown("---")
     archivo_subido = st.file_uploader("📂 Cargar reporte del día (Excel)", type=["xlsx", "xls"])
     st.markdown("---")
-    st.caption("<b>Parámetros de Control ANS:</b><br>• Sector Urbano: Límite 1 día<br>• Sector Rural: Límite 3 días", unsafe_allow_html=True)
+    st.caption("<b>Parámetros de Control:</b><br>• Sector Urbano: Límite 1 día<br>• Sector Rural: Límite 3 días", unsafe_allow_html=True)
 
 if archivo_subido is not None:
     archivo_a_usar = archivo_subido
@@ -379,14 +379,7 @@ if archivo_a_usar is not None:
             df['Fecha_Calculo'] = pd.to_datetime(df[fecha_col[0]], errors='coerce') if fecha_col else pd.NaT
 
         hoy = pd.Timestamp.now().normalize()
-        
-        # Uso preferente de 'CONTADOR DIAS' o cálculo directo por fecha
-        if 'CONTADOR DIAS' in df.columns:
-            df['Días Sin Servicio'] = pd.to_numeric(df['CONTADOR DIAS'], errors='coerce').fillna(
-                (hoy - df['Fecha_Calculo']).dt.days
-            ).fillna(0).astype(int)
-        else:
-            df['Días Sin Servicio'] = (hoy - df['Fecha_Calculo']).dt.days.fillna(0).astype(int)
+        df['Días Sin Servicio'] = (hoy - df['Fecha_Calculo']).dt.days.fillna(0).astype(int)
         
         # CLASIFICACIÓN SECTOR URBANO / RURAL
         def clasificar_sector(direccion):
@@ -406,12 +399,6 @@ if archivo_a_usar is not None:
             df['Clientes Sin Servicio'] = pd.to_numeric(df['Clientes no restaurados'], errors='coerce').fillna(0).astype(int)
         else:
             df['Clientes Sin Servicio'] = 0
-
-        # HOMOGENEIZACIÓN DE LA COLUMNA CAUSA (NUEVO)
-        if 'Causa' in df.columns:
-            df['Causa'] = df['Causa'].fillna('Sin Especificar').astype(str)
-        else:
-            df['Causa'] = 'Sin Especificar'
 
         # EVALUACIÓN DE ANS (SLA)
         def estado_sla(row):
@@ -462,51 +449,43 @@ if archivo_a_usar is not None:
             
         subestaciones_disponibles = sorted(df['Subestación'].unique())
         zonas_disponibles = sorted(df['Zona'].unique())
-        causas_disponibles = sorted(df['Causa'].unique())
 
         # ---------------------------------------------------------
-        # PANEL DE FILTROS AVANZADOS MULTINIVEL (ACTUALIZADO CON CAUSA)
+        # PANEL DE FILTROS AVANZADOS MULTINIVEL
         # ---------------------------------------------------------
         st.markdown('<div class="filter-panel">', unsafe_allow_html=True)
 
-        f1, f2, f3, f4, f5, f6 = st.columns([1.5, 2.0, 2.0, 1.2, 1.3, 0.9])
+        f1, f2, f3, f4, f5 = st.columns([1.8, 2.2, 1.3, 1.3, 0.9])
         
         with f1:
             zonas_seleccionadas = st.multiselect(
-                "MAPEO ZONA:",
+                "🗺️ Zona:",
                 options=zonas_disponibles,
                 default=zonas_disponibles
             )
         with f2:
             subestaciones_seleccionadas = st.multiselect(
-                "UBICACIÓN SUBESTACIÓN:",
+                "📍 Subestación:",
                 options=subestaciones_disponibles,
                 default=subestaciones_disponibles
             )
         with f3:
-            causas_seleccionadas = st.multiselect(
-                "CAUSA FALLA:",
-                options=causas_disponibles,
-                default=causas_disponibles
-            )
-        with f4:
             sectores_seleccionados = st.multiselect(
-                "SECTOR:",
+                "🏠 Sector:",
                 options=['URBANO', 'RURAL'],
                 default=['URBANO', 'RURAL']
             )
-        with f5:
+        with f4:
             sla_seleccionados = st.multiselect(
-                "ESTADO SLA:",
+                "🚨 Estado SLA:",
                 options=['Vencido', 'Al Límite', 'A Tiempo'],
                 default=['Vencido', 'Al Límite', 'A Tiempo']
             )
-        with f6:
+        with f5:
             st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
-            if st.button("Restablecer", use_container_width=True):
+            if st.button("🔄 Restablecer", use_container_width=True):
                 zonas_seleccionadas = zonas_disponibles
                 subestaciones_seleccionadas = subestaciones_disponibles
-                causas_seleccionadas = causas_disponibles
                 sectores_seleccionados = ['URBANO', 'RURAL']
                 sla_seleccionados = ['Vencido', 'Al Límite', 'A Tiempo']
         st.markdown('</div>', unsafe_allow_html=True)
@@ -515,7 +494,6 @@ if archivo_a_usar is not None:
         df_filtrado = df[
             (df['Zona'].isin(zonas_seleccionadas)) &
             (df['Subestación'].isin(subestaciones_seleccionadas)) &
-            (df['Causa'].isin(causas_seleccionadas)) &
             (df['Tipo de Sector'].isin(sectores_seleccionados)) &
             (df['Estado SLA'].isin(sla_seleccionados))
         ].copy().reset_index(drop=True)
@@ -530,19 +508,19 @@ if archivo_a_usar is not None:
             st.warning("⚠️ No existen registros que coincidan con la combinación de filtros seleccionada.")
             st.stop()
 
-        # PALETA OFICIAL DE CONTROL
+        # PALETA OFICIAL
         colores = {'A Tiempo': '#00B050', 'Al Límite': '#FFC000', 'Vencido': '#C00000'}
 
         # ---------------------------------------------------------
         # PESTAÑAS OPERATIVAS (TAB STRUCTURE)
         # ---------------------------------------------------------
-        tab1, tab2, tab3 = st.tabs(["Control de Despacho & SLA", "Análisis por Subestación, Causa y Zona", "Exportación de Planilla"])
+        tab1, tab2, tab3 = st.tabs(["🚨 Control de Despacho & SLA", "📊 Análisis por Subestación y Zona", "📥 Exportación de Planilla"])
 
         # =========================================================
         # TAB 1: DESPACHO Y SLA (VISTA PRINCIPAL)
         # =========================================================
         with tab1:
-            # MÉTRICAS EJECUTIVAS KPI
+            # MÉTRICAS EJECUTIVAS
             vencidos_cnt = int((df_filtrado['Estado SLA'] == 'Vencido').sum())
             limite_cnt = int((df_filtrado['Estado SLA'] == 'Al Límite').sum())
             tiempo_cnt = int((df_filtrado['Estado SLA'] == 'A Tiempo').sum())
@@ -619,7 +597,7 @@ if archivo_a_usar is not None:
                 st.subheader("🚨 Top 10 DP Críticos (Más Días Sin Servicio)")
                 vencidos = df_filtrado.sort_values(by=['Días Sin Servicio', 'Clientes Sin Servicio'], ascending=[False, False]).head(10).reset_index(drop=True)
                 if not vencidos.empty:
-                    hover_cols = [c for c in ['Zona', 'Subestación', 'Causa', 'Clientes Sin Servicio', 'Dirección del dispositivo', 'Tipo de Sector', 'Cuadrillas'] if c in vencidos.columns]
+                    hover_cols = [c for c in ['Zona', 'Subestación', 'Clientes Sin Servicio', 'Dirección del dispositivo', 'Tipo de Sector', 'Cuadrillas'] if c in vencidos.columns]
                     id_col = [c for c in vencidos.columns if 'identificaci' in c.lower()]
                     y_col = id_col[0] if id_col else 'Identificación'
 
@@ -640,12 +618,12 @@ if archivo_a_usar is not None:
                 else:
                     st.info("✨ No hay incidentes en el corte actual.")
 
-            # TABLA DE DETALLE OPERATIVO (CON LA COLUMNA CAUSA INCLUIDA)
+            # TABLA DE DETALLE OPERATIVO
             st.subheader("📋 Detalle Operativo para Despacho")
-            st.caption("Ordenado automáticamente por criticidad: Vencidos ➔ Días Transcurridos ➔ Clientes Afectados | Revisa la Causa para asignar la cuadrilla idónea.")
+            st.caption("Ordenado automáticamente por criticidad: Vencidos ➔ Días Transcurridos ➔ Clientes Afectados")
 
             columnas_deseadas = [
-                'Identificación', 'Zona', 'Subestación', 'Circuito_Nombre', 'Instrucción', 'Causa',
+                'Identificación', 'Zona', 'Subestación', 'Circuito_Nombre', 'Instrucción', 
                 'Dirección del dispositivo', 'Tipo de Sector', 
                 'Clientes Sin Servicio', 'Días Sin Servicio', 
                 'Estado SLA', 'Cuadrillas'
@@ -684,10 +662,10 @@ if archivo_a_usar is not None:
                 )
 
         # =========================================================
-        # TAB 2: ANÁLISIS POR SUBESTACIÓN, CAUSA Y ZONA
+        # TAB 2: ANÁLISIS POR SUBESTACIÓN Y ZONA
         # =========================================================
         with tab2:
-            st.subheader("📊 Matriz de Cumplimiento por Subestación y Causa de Falla")
+            st.subheader("📊 Matriz de Cumplimiento por Subestación y Zona")
             
             resumen_sub = df_filtrado.groupby(['Zona', 'Subestación'], as_index=False).agg(
                 Total_DP=('Identificación', 'count'),
@@ -711,29 +689,31 @@ if archivo_a_usar is not None:
                 st.plotly_chart(fig_sub, use_container_width=True)
 
             with s2:
-                st.markdown("##### Resumen Agregado por Subestación")
+                st.markdown("##### Resumen Agregado")
                 st.dataframe(
                     resumen_sub[['Zona', 'Subestación', 'Total_DP', 'Vencidos', '% Cumplimiento SLA', 'Clientes_Afectados']].sort_values(by=['Zona', 'Vencidos'], ascending=[True, False]).reset_index(drop=True),
                     use_container_width=True,
                     height=340
                 )
 
-            st.markdown("---")
-            st.subheader("🛠️ Distribución de Incidentes por Causa de Falla")
-            causa_summary = df_filtrado.groupby('Causa', as_index=False).agg(
-                Total_DP=('Identificación', 'count'),
-                Vencidos=('Estado SLA', lambda x: (x == 'Vencido').sum()),
-                Clientes_Afectados=('Clientes Sin Servicio', 'sum')
-            ).sort_values(by='Total_DP', ascending=False)
-
-            fig_causa = px.bar(
-                causa_summary, x='Causa', y='Total_DP', color='Vencidos',
-                title="Volumen de Daños por Causa de Falla y Nivel de Vencimiento",
-                color_continuous_scale='Reds', text='Total_DP'
-            )
-            fig_causa.update_layout(height=350, xaxis_title="Causa de la Falla", yaxis_title="Cantidad de Incidentes")
-            st.plotly_chart(fig_causa, use_container_width=True)
-
         # =========================================================
         # TAB 3: EXPORTACIÓN DE DATOS
-        # =================================
+        # =========================================================
+        with tab3:
+            st.subheader("📥 Exportar Planilla de Despacho")
+            st.markdown("Descarga la lista con el filtro actual aplicado para enviar a los líderes de cuadrilla o imprimir.")
+
+            buffer = io.BytesIO()
+            with pd.ExcelWriter(buffer, engine='openpyxl') as writer:
+                df_display_clean.to_excel(writer, index=False, sheet_name='Reporte_DP_Centro_Norte')
+            
+            st.download_button(
+                label="📥 Descargar Planilla en Excel (.xlsx)",
+                data=buffer.getvalue(),
+                file_name=f"Planilla_Despacho_DP_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=False
+            )
+
+    except Exception as e:
+        st.error(f"❌ Error procesando el archivo: {e}. Asegúrate de que sea el archivo exportado de WFM.")
