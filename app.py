@@ -624,7 +624,7 @@ if archivo_a_usar is not None:
 
             columnas_deseadas = [
                 'Identificación', 'Zona', 'Subestación', 'Circuito_Nombre', 'Instrucción', 
-                'Dirección del dispositivo', 'Tipo de Sector', 
+                'Causa', 'Dirección del dispositivo', 'Tipo de Sector', 
                 'Clientes Sin Servicio', 'Días Sin Servicio', 
                 'Estado SLA', 'Cuadrillas'
             ]
