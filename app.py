@@ -446,16 +446,26 @@ if archivo_a_usar is not None:
             df['Subestación'] = df['Subestación'].fillna('SIN SUBESTACIÓN').astype(str)
         else:
             df['Subestación'] = 'SIN SUBESTACIÓN'
+
+        # HOMOGENEIZACIÓN DE LA COLUMNA CAUSA
+        causa_col = [c for c in df.columns if 'causa' in c.lower()]
+        if causa_col and causa_col[0] != 'Causa':
+            df['Causa'] = df[causa_col[0]].fillna('SIN CAUSA').astype(str)
+        elif 'Causa' in df.columns:
+            df['Causa'] = df['Causa'].fillna('SIN CAUSA').astype(str)
+        else:
+            df['Causa'] = 'SIN CAUSA'
             
         subestaciones_disponibles = sorted(df['Subestación'].unique())
         zonas_disponibles = sorted(df['Zona'].unique())
+        causas_disponibles = sorted(df['Causa'].unique())
 
         # ---------------------------------------------------------
         # PANEL DE FILTROS AVANZADOS MULTINIVEL
         # ---------------------------------------------------------
         st.markdown('<div class="filter-panel">', unsafe_allow_html=True)
 
-        f1, f2, f3, f4, f5 = st.columns([1.8, 2.2, 1.3, 1.3, 0.9])
+        f1, f2, f3, f4, f5, f6 = st.columns([1.5, 1.8, 1.8, 1.1, 1.1, 0.8])
         
         with f1:
             zonas_seleccionadas = st.multiselect(
@@ -470,22 +480,29 @@ if archivo_a_usar is not None:
                 default=subestaciones_disponibles
             )
         with f3:
+            causas_seleccionadas = st.multiselect(
+                "🔍 Causa:",
+                options=causas_disponibles,
+                default=causas_disponibles
+            )
+        with f4:
             sectores_seleccionados = st.multiselect(
                 "🏠 Sector:",
                 options=['URBANO', 'RURAL'],
                 default=['URBANO', 'RURAL']
             )
-        with f4:
+        with f5:
             sla_seleccionados = st.multiselect(
                 "🚨 Estado SLA:",
                 options=['Vencido', 'Al Límite', 'A Tiempo'],
                 default=['Vencido', 'Al Límite', 'A Tiempo']
             )
-        with f5:
+        with f6:
             st.markdown("<div style='height: 28px;'></div>", unsafe_allow_html=True)
             if st.button("🔄 Restablecer", use_container_width=True):
                 zonas_seleccionadas = zonas_disponibles
                 subestaciones_seleccionadas = subestaciones_disponibles
+                causas_seleccionadas = causas_disponibles
                 sectores_seleccionados = ['URBANO', 'RURAL']
                 sla_seleccionados = ['Vencido', 'Al Límite', 'A Tiempo']
         st.markdown('</div>', unsafe_allow_html=True)
@@ -494,6 +511,7 @@ if archivo_a_usar is not None:
         df_filtrado = df[
             (df['Zona'].isin(zonas_seleccionadas)) &
             (df['Subestación'].isin(subestaciones_seleccionadas)) &
+            (df['Causa'].isin(causas_seleccionadas)) &
             (df['Tipo de Sector'].isin(sectores_seleccionados)) &
             (df['Estado SLA'].isin(sla_seleccionados))
         ].copy().reset_index(drop=True)
@@ -617,6 +635,39 @@ if archivo_a_usar is not None:
                     st.plotly_chart(fig2, use_container_width=True)
                 else:
                     st.info("✨ No hay incidentes en el corte actual.")
+
+            st.markdown("<br>", unsafe_allow_html=True)
+
+            # GRÁFICA DE DIAGNÓSTICO POR CAUSA (CANTIDAD Y PORCENTAJE)
+            st.subheader("🔍 Diagnóstico por Causa de Daño (Cantidades y Porcentajes)")
+            df_causas = df_filtrado['Causa'].value_counts().reset_index()
+            df_causas.columns = ['Causa', 'Cantidad']
+            total_causas = df_causas['Cantidad'].sum()
+            df_causas['Porcentaje'] = ((df_causas['Cantidad'] / total_causas) * 100).round(1)
+            df_causas['Etiqueta'] = df_causas['Cantidad'].astype(str) + " (" + df_causas['Porcentaje'].astype(str) + "%)"
+
+            fig_causas = px.bar(
+                df_causas.sort_values(by='Cantidad', ascending=True),
+                x='Cantidad',
+                y='Causa',
+                orientation='h',
+                text='Etiqueta',
+                color='Cantidad',
+                color_continuous_scale='Blues'
+            )
+            fig_causas.update_traces(
+                textposition='outside',
+                cliponaxis=False,
+                marker=dict(line=dict(color='#1e293b', width=1))
+            )
+            fig_causas.update_layout(
+                height=340,
+                xaxis_title="Número de Incidentes",
+                yaxis_title="Causa del Daño",
+                margin=dict(t=10, b=10, l=10, r=50),
+                coloraxis_showscale=False
+            )
+            st.plotly_chart(fig_causas, use_container_width=True)
 
             # TABLA DE DETALLE OPERATIVO
             st.subheader("📋 Detalle Operativo para Despacho")
