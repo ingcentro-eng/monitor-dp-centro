@@ -298,6 +298,7 @@ MAPEO_CIRCUITOS = {
     'CTO CAJAMARCA 2': 'CENTRO',
     'PUERTO VIEJO CTO 3 13.2 KV': 'NORTE',
     'ARRIEROS LIBANO 34.5 kV': 'NORTE',
+    'EL SALTO CTO 3 A 13,2 kV': 'NORTE',
     'CAJAMARCA 2 - CAJAMARCA 34.5 kV': 'CENTRO',
     'CHAPETON 34.5 KV': 'CENTRO',
     'CTO GUALANDAY': 'CENTRO',
@@ -306,7 +307,7 @@ MAPEO_CIRCUITOS = {
     'SALADO 2 - ALVARADO 34.5 KV': 'CENTRO',
     'VENADILLO 1 34.5 kV': 'CENTRO',
     'VENADILLO 2 34.5 kV': 'CENTRO'
-}
+    }
 
 # ---------------------------------------------------------
 # ENCABEZADO PRINCIPAL
